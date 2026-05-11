@@ -7,4 +7,14 @@ class Menu extends Model
 {
     use HasFactory;
     protected $guarded = ['id'];
+
+    public function business()
+    {
+        return $this->belongsTo(Business::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(MenuItem::class);
+    }
 }
