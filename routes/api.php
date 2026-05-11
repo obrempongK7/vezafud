@@ -140,11 +140,13 @@ Route::prefix('v1')->group(function () {
         Route::prefix('menus')->group(function () {
             Route::post('/', function (\Illuminate\Http\Request $req) {
                 $req->validate(['business_id' => 'required|exists:businesses,id', 'name' => 'required|string']);
+                if (\App\Models\Business::findOrFail($req->business_id)->owner_id !== auth()->id()) abort(403);
                 $menu = \App\Models\Menu::create($req->only(['business_id','branch_id','name','description','menu_type']));
                 return response()->json(['success' => true, 'data' => $menu], 201);
             });
             Route::post('{menu}/items', function (\Illuminate\Http\Request $req, \App\Models\Menu $menu) {
                 $req->validate(['name' => 'required|string', 'price' => 'required|numeric|min:0']);
+                if ($menu->business->owner_id !== auth()->id()) abort(403);
                 $item = $menu->items()->create($req->only(['category_id','name','description','price','discount_price','preparation_time','is_featured','is_vegetarian','is_vegan','is_halal']));
                 if ($req->hasFile('image')) {
                     $item->media()->create(['media_url' => $req->file('image')->store("menus/{$menu->id}",'public'), 'is_primary' => true]);
@@ -152,6 +154,7 @@ Route::prefix('v1')->group(function () {
                 return response()->json(['success' => true, 'data' => $item], 201);
             });
             Route::put('items/{item}', function (\Illuminate\Http\Request $req, \App\Models\MenuItem $item) {
+                if ($item->menu->business->owner_id !== auth()->id()) abort(403);
                 $item->update($req->only(['name','description','price','discount_price','availability','preparation_time','is_featured']));
                 return response()->json(['success' => true, 'data' => $item]);
             });
