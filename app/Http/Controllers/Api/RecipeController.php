@@ -36,12 +36,20 @@ class RecipeController extends Controller
         DB::beginTransaction();
         try {
             $recipe = Recipe::create(array_merge($request->only(['title','description','category_id','prep_time','cook_time','servings','difficulty','visibility']),['user_id'=>auth()->id(),'slug'=>Str::slug($request->title).'-'.Str::random(6),'status'=>'draft']));
-            foreach ($request->ingredients as $i => $ing) {
-                $recipe->ingredients()->create(array_merge($ing,['order_index'=>$i]));
-            }
-            foreach ($request->steps as $s => $step) {
-                $recipe->steps()->create(array_merge($step,['step_number'=>$s+1]));
-            }
+            $now = now();
+            $ingredients = array_map(function($ing, $i) use ($recipe, $now) {
+                // Extract only expected fields, preventing mass assignment vulnerabilities
+                $allowed = \Illuminate\Support\Arr::only($ing, ['name', 'quantity', 'unit', 'notes', 'is_optional', 'group_number', 'group_name']);
+                return array_merge($allowed, ['recipe_id' => $recipe->id, 'order_index' => $i, 'created_at' => $now, 'updated_at' => $now]);
+            }, $request->ingredients, array_keys($request->ingredients));
+            \App\Models\RecipeIngredient::insert($ingredients);
+
+            $steps = array_map(function($step, $s) use ($recipe, $now) {
+                // Extract only expected fields, preventing mass assignment vulnerabilities
+                $allowed = \Illuminate\Support\Arr::only($step, ['title', 'instructions', 'image', 'video_url', 'timer_minutes', 'tip']);
+                return array_merge($allowed, ['recipe_id' => $recipe->id, 'step_number' => $s+1, 'created_at' => $now, 'updated_at' => $now]);
+            }, $request->steps, array_keys($request->steps));
+            \App\Models\RecipeStep::insert($steps);
             if ($request->hasFile('cover_image')) $recipe->update(['cover_image'=>$request->file('cover_image')->store("recipes/{$recipe->id}",'public')]);
             app(\App\Services\WalletService::class)->awardPoints(auth()->user(), 5, 'recipe', 'Uploaded recipe');
             auth()->user()->profile?->increment('recipe_count');
