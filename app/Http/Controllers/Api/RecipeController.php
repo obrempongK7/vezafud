@@ -36,12 +36,20 @@ class RecipeController extends Controller
         DB::beginTransaction();
         try {
             $recipe = Recipe::create(array_merge($request->only(['title','description','category_id','prep_time','cook_time','servings','difficulty','visibility']),['user_id'=>auth()->id(),'slug'=>Str::slug($request->title).'-'.Str::random(6),'status'=>'draft']));
+
+            $now = now();
+
+            $ingredientsData = [];
             foreach ($request->ingredients as $i => $ing) {
-                $recipe->ingredients()->create(array_merge($ing,['order_index'=>$i]));
+                $ingredientsData[] = array_merge($ing, ['recipe_id' => $recipe->id, 'order_index' => $i, 'created_at' => $now, 'updated_at' => $now]);
             }
+            \App\Models\RecipeIngredient::insert($ingredientsData);
+
+            $stepsData = [];
             foreach ($request->steps as $s => $step) {
-                $recipe->steps()->create(array_merge($step,['step_number'=>$s+1]));
+                $stepsData[] = array_merge($step, ['recipe_id' => $recipe->id, 'step_number' => $s+1, 'created_at' => $now, 'updated_at' => $now]);
             }
+            \App\Models\RecipeStep::insert($stepsData);
             if ($request->hasFile('cover_image')) $recipe->update(['cover_image'=>$request->file('cover_image')->store("recipes/{$recipe->id}",'public')]);
             app(\App\Services\WalletService::class)->awardPoints(auth()->user(), 5, 'recipe', 'Uploaded recipe');
             auth()->user()->profile?->increment('recipe_count');
