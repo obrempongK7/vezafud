@@ -158,8 +158,14 @@ class OrderService
             ]);
 
             // Create order items
+            $orderItemsData = [];
+            $now = now();
             foreach ($items as $item) {
-                OrderItem::create([
+                $addons = $item->selected_addons;
+                if (is_array($addons) || is_object($addons)) {
+                    $addons = json_encode($addons);
+                }
+                $orderItemsData[] = [
                     'order_id'      => $order->id,
                     'menu_item_id'  => $item->menu_item_id,
                     'item_name'     => $item->menuItem->name,
@@ -168,9 +174,14 @@ class OrderService
                     'quantity'      => $item->quantity,
                     'unit_price'    => $item->unit_price,
                     'total_price'   => $item->unit_price * $item->quantity,
-                    'addons'        => $item->selected_addons,
+                    'addons'        => $addons,
                     'instructions'  => $item->instructions,
-                ]);
+                    'created_at'    => $now,
+                    'updated_at'    => $now,
+                ];
+            }
+            if (!empty($orderItemsData)) {
+                OrderItem::insert($orderItemsData);
             }
 
             // Process payment
