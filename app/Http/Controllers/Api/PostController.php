@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Post;
+use App\Models\PostMedia;
 use App\Models\PostLike;
 use App\Models\PostComment;
 use App\Models\SavedPost;
@@ -69,15 +70,18 @@ class PostController extends Controller
                 'location_lng' => $request->location_lng,
             ]);
 
-            foreach ($request->file('media') as $index => $file) {
-                $path = $file->store("posts/{$post->id}", 'public');
-                $post->media()->create([
+            $now = now();
+            PostMedia::insert(
+                collect($request->file('media'))->map(fn($file, $index) => [
+                    'post_id'     => $post->id,
                     'media_type'  => str_contains($file->getMimeType(), 'video') ? 'video' : 'image',
-                    'media_url'   => $path,
+                    'media_url'   => $file->store("posts/{$post->id}", 'public'),
                     'size'        => $file->getSize(),
                     'order_index' => $index,
-                ]);
-            }
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ])->all()
+            );
 
             if ($request->hashtags) {
                 foreach ($request->hashtags as $tag) {
