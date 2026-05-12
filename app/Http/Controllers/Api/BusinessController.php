@@ -66,7 +66,7 @@ class BusinessController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate(['name'=>'required|string|max:200','business_type'=>'required','description'=>'nullable|string','phone'=>'nullable|string','email'=>'nullable|email']);
+        $request->validate(['name'=>'required|string|max:200','business_type'=>'required','description'=>'nullable|string','phone'=>'nullable|string','email'=>'nullable|email','logo'=>'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048']);
         $business = Business::create(array_merge($request->only(['name','business_type','description','phone','email','price_range','cuisine_types']),[
             'owner_id'=>auth()->id(),
             'slug'=>Str::slug($request->name).'-'.Str::random(6),
