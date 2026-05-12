@@ -84,23 +84,26 @@ class OrderController extends Controller
     // Business-side order management
     public function businessOrders(Request $request, \App\Models\Business $business)
     {
+        if ($business->owner_id !== auth()->id()) abort(403);
         $orders = Order::with(['customer.profile','items','delivery'])->where('business_id',$business->id)->when($request->status,fn($q)=>$q->where('order_status',$request->status))->orderByDesc('created_at')->paginate(20);
         return response()->json(['success'=>true,'data'=>$orders]);
     }
 
     public function accept(Order $order)
     {
+        if ($order->business->owner_id !== auth()->id()) abort(403);
         try { $this->orderService->acceptOrder($order); return response()->json(['success'=>true,'message'=>'Order accepted']); }
         catch (\Exception $e) { return response()->json(['success'=>false,'message'=>$e->getMessage()],400); }
     }
 
     public function reject(Request $request, Order $order)
     {
+        if ($order->business->owner_id !== auth()->id()) abort(403);
         $request->validate(['reason'=>'required|string']);
         $this->orderService->rejectOrder($order,$request->reason);
         return response()->json(['success'=>true,'message'=>'Order rejected']);
     }
 
-    public function markPreparing(Order $order) { $this->orderService->markPreparing($order); return response()->json(['success'=>true]); }
-    public function markReady(Order $order) { $this->orderService->markReadyForPickup($order); return response()->json(['success'=>true]); }
+    public function markPreparing(Order $order) { if ($order->business->owner_id !== auth()->id()) abort(403); $this->orderService->markPreparing($order); return response()->json(['success'=>true]); }
+    public function markReady(Order $order) { if ($order->business->owner_id !== auth()->id()) abort(403); $this->orderService->markReadyForPickup($order); return response()->json(['success'=>true]); }
 }
