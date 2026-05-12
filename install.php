@@ -61,10 +61,16 @@ function generateAppKey(): string {
 }
 
 function runArtisan(string $command): array {
-    $php = PHP_BINARY;
-    $artisan = BASE_PATH . '/artisan';
-    if (!file_exists($artisan)) return ['success' => false, 'output' => 'artisan not found'];
-    exec("{$php} {$artisan} {$command} 2>&1", $output, $code);
+    $php = escapeshellarg(PHP_BINARY);
+    $artisanPath = BASE_PATH . '/artisan';
+    $artisan = escapeshellarg($artisanPath);
+    if (!file_exists($artisanPath)) return ['success' => false, 'output' => 'artisan not found'];
+
+    $args = explode(' ', $command);
+    $escapedArgs = array_map('escapeshellarg', $args);
+    $escapedCommand = implode(' ', $escapedArgs);
+
+    exec("{$php} {$artisan} {$escapedCommand} 2>&1", $output, $code);
     return ['success' => $code === 0, 'output' => implode("\n", $output)];
 }
 
