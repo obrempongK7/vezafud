@@ -74,9 +74,7 @@ class PlatformSettingsSeeder extends Seeder
             ['key' => 'support_phone',          'value' => '+233 XX XXX XXXX', 'group' => 'contact',   'label' => 'Support Phone',         'is_public' => true],
         ];
 
-        foreach ($settings as $setting) {
-            PlatformSetting::updateOrCreate(['key' => $setting['key']], $setting);
-        }
+        PlatformSetting::upsert($settings, ['key'], ['value', 'group', 'label', 'is_public']);
     }
 }
 
