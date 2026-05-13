@@ -12,6 +12,9 @@ use App\Models\RewardPointTransaction;
 use App\Models\CashbackLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Enums\CashbackStatus;
+use App\Enums\WalletTransactionType;
+use App\Enums\RewardPointTransactionType;
 
 class WalletService
 {
@@ -61,7 +64,7 @@ class WalletService
             ]);
 
             $wallet = $topup->user->getOrCreateWallet();
-            $wallet->credit($topup->amount, 'wallet_topup', "Wallet top-up via {$topup->payment_method}");
+            $wallet->credit($topup->amount, WalletTransactionType::WALLET_TOPUP->value, "Wallet top-up via {$topup->payment_method}");
         });
     }
 
@@ -72,7 +75,7 @@ class WalletService
             if (!$wallet || !$wallet->canDebit($order->total)) {
                 throw new \Exception('Insufficient wallet balance');
             }
-            $wallet->debit($order->total, 'order_payment', "Payment for order #{$order->order_number}", 'Order', $order->id);
+            $wallet->debit($order->total, WalletTransactionType::ORDER_PAYMENT->value, "Payment for order #{$order->order_number}", 'Order', $order->id);
             $order->update(['payment_status' => 'paid', 'payment_method' => 'wallet']);
         });
     }
@@ -81,7 +84,7 @@ class WalletService
     {
         DB::transaction(function () use ($user, $order, $amount, $reason) {
             $wallet = $user->getOrCreateWallet();
-            $wallet->credit($amount, 'refund_credit', "Refund for order #{$order->order_number}: {$reason}", 'Order', $order->id);
+            $wallet->credit($amount, WalletTransactionType::REFUND_CREDIT->value, "Refund for order #{$order->order_number}: {$reason}", 'Order', $order->id);
         });
     }
 
@@ -105,8 +108,8 @@ class WalletService
             ]);
 
             // Give referrer wallet bonus
-            $referrer->getOrCreateWallet()->credit($referrerBonus, 'referral_reward', "Referral bonus for inviting @{$referred->username}");
-            $referred->getOrCreateWallet()->credit($referredBonus, 'referral_reward', "Welcome bonus from referral");
+            $referrer->getOrCreateWallet()->credit($referrerBonus, WalletTransactionType::REFERRAL_REWARD->value, "Referral bonus for inviting @{$referred->username}");
+            $referred->getOrCreateWallet()->credit($referredBonus, WalletTransactionType::REFERRAL_REWARD->value, "Welcome bonus from referral");
 
             // Award points
             $this->awardPoints($referrer, $this->pointsConfig['referral'], 'referral', "Referral bonus", 'User', $referredId);
@@ -130,7 +133,7 @@ class WalletService
                 'order_amount'        => $order->subtotal,
                 'cashback_percentage' => $cashbackRate,
                 'cashback_amount'     => $cashbackAmount,
-                'status'              => 'pending',
+                'status'              => CashbackStatus::PENDING->value,
             ]);
 
             // Credit after a short delay (via job)
@@ -143,8 +146,8 @@ class WalletService
         DB::transaction(function () use ($log) {
             $user = User::findOrFail($log->user_id);
             $wallet = $user->getOrCreateWallet();
-            $wallet->credit($log->cashback_amount, 'cashback_reward', "Cashback reward for order", 'CashbackLog', $log->id);
-            $log->update(['status' => 'credited', 'credited_at' => now()]);
+            $wallet->credit($log->cashback_amount, WalletTransactionType::CASHBACK_REWARD->value, "Cashback reward for order", 'CashbackLog', $log->id);
+            $log->update(['status' => CashbackStatus::CREDITED->value, 'credited_at' => now()]);
         });
     }
 
@@ -162,7 +165,7 @@ class WalletService
 
             RewardPointTransaction::create([
                 'user_id'        => $user->id,
-                'type'           => 'earn',
+                'type'           => RewardPointTransactionType::EARN->value,
                 'points'         => $points,
                 'source'         => $source,
                 'description'    => $description,
@@ -190,7 +193,7 @@ class WalletService
 
             RewardPointTransaction::create([
                 'user_id'       => $user->id,
-                'type'          => 'redeem',
+                'type'          => RewardPointTransactionType::REDEEM->value,
                 'points'        => -$points,
                 'source'        => 'redemption',
                 'description'   => "Redeemed for: {$reward->name}",
@@ -250,7 +253,7 @@ class WalletService
         }
 
         DB::transaction(function () use ($user, $wallet, $amount, $method, $accountDetails, &$request) {
-            $wallet->debit($amount, 'withdrawal', "Withdrawal request via {$method}");
+            $wallet->debit($amount, WalletTransactionType::WITHDRAWAL->value, "Withdrawal request via {$method}");
             $request = WithdrawalRequest::create([
                 'user_id'            => $user->id,
                 'amount'             => $amount,
