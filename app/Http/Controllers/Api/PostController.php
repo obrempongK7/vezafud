@@ -2,20 +2,17 @@
 namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Post;
-use App\Models\PostMedia;
 use App\Models\PostLike;
 use App\Models\PostComment;
 use App\Models\SavedPost;
-use App\Models\Hashtag;
 use App\Services\FeedService;
 use App\Services\NotificationService;
+use App\Services\PostService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class PostController extends Controller
 {
-    public function __construct(protected FeedService $feedService, protected NotificationService $notificationService) {}
+    public function __construct(protected FeedService $feedService, protected NotificationService $notificationService, protected PostService $postService) {}
 
     public function feed(Request $request)
     {
@@ -41,9 +38,9 @@ class PostController extends Controller
         return response()->json(['success'=>true,'data'=>$stories]);
     }
 
-    public function store(Request $request)
+        public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'post_type'   => 'required|in:photo,video,reel,recipe_share,review,check_in,promotion,event',
             'caption'     => 'nullable|string|max:2200',
             'visibility'  => 'nullable|in:public,followers,private',
@@ -56,49 +53,10 @@ class PostController extends Controller
             'hashtags'    => 'nullable|array',
         ]);
 
-        DB::beginTransaction();
         try {
-            $post = Post::create([
-                'uuid'         => Str::uuid(),
-                'user_id'      => auth()->id(),
-                'business_id'  => $request->business_id,
-                'post_type'    => $request->post_type,
-                'caption'      => $request->caption,
-                'visibility'   => $request->visibility ?? 'public',
-                'location_name'=> $request->location_name,
-                'location_lat' => $request->location_lat,
-                'location_lng' => $request->location_lng,
-            ]);
-
-            $now = now();
-            PostMedia::insert(
-                collect($request->file('media'))->map(fn($file, $index) => [
-                    'post_id'     => $post->id,
-                    'media_type'  => str_contains($file->getMimeType(), 'video') ? 'video' : 'image',
-                    'media_url'   => $file->store("posts/{$post->id}", 'public'),
-                    'size'        => $file->getSize(),
-                    'order_index' => $index,
-                    'created_at'  => $now,
-                    'updated_at'  => $now,
-                ])->all()
-            );
-
-            if ($request->hashtags) {
-                foreach ($request->hashtags as $tag) {
-                    $hashtag = Hashtag::firstOrCreate(['name' => strtolower($tag)], ['slug' => Str::slug($tag)]);
-                    $hashtag->increment('post_count');
-                    $post->hashtags()->attach($hashtag->id);
-                }
-            }
-
-            // Award points
-            app(\App\Services\WalletService::class)->awardPoints(auth()->user(), 2, 'post', 'Posted content');
-            auth()->user()->profile?->increment('post_count');
-
-            DB::commit();
+            $post = $this->postService->createPost($data, auth()->user(), $request->file('media'));
             return response()->json(['success'=>true,'message'=>'Post created','data'=>$this->feedService->formatPost($post->load(['user.profile','media','hashtags']), auth()->user())], 201);
         } catch (\Throwable $e) {
-            DB::rollBack();
             return response()->json(['success'=>false,'message'=>$e->getMessage()], 500);
         }
     }
