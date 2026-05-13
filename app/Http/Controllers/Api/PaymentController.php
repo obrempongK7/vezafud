@@ -11,7 +11,7 @@ class PaymentController extends Controller
     public function initializeOrderPayment(Request $request, string $uuid)
     {
         $order = Order::where('uuid',$uuid)->where('customer_id',auth()->id())->firstOrFail();
-        if ($order->payment_status === 'paid') return response()->json(['success'=>false,'message'=>'Order already paid'],400);
+        if ($order->payment_status === 'paid') return $this->errorResponse('Order already paid', 400);
         $ref = 'VZF-ORD-'.strtoupper(Str::random(12));
         Transaction::create(['uuid'=>Str::uuid(),'reference'=>$ref,'user_id'=>auth()->id(),'order_id'=>$order->id,'transaction_type'=>'order_payment','amount'=>$order->total,'currency'=>'GHS','status'=>'pending','payment_gateway'=>$request->gateway??'paystack']);
         $url = $this->buildPaymentUrl($request->gateway??'paystack',$ref,$order->total,$order->customer->email,"Order #{$order->order_number}");
